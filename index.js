@@ -37,10 +37,10 @@
     width = innerWidth; height = innerHeight;
     canvas.width = width * ratio; canvas.height = height * ratio;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    particles = Array.from({ length: Math.min(68, Math.floor(width / 19)) }, () => ({
+    particles = Array.from({ length: Math.min(112, Math.floor(width / 12)) }, () => ({
       x: Math.random() * width, y: Math.random() * height,
       vx: (Math.random() - .5) * .24, vy: (Math.random() - .5) * .24,
-      r: Math.random() * 1.4 + .5, a: Math.random() * .36 + .11,
+      r: Math.random() * 1.8 + .7, a: Math.random() * .48 + .22,
       hue: Math.random() > .55 ? 194 : 216
     }));
   }
@@ -58,9 +58,9 @@
       ctx.fillStyle = `hsla(${p.hue},82%,79%,${p.a})`; ctx.fill();
       for (let j = i + 1; j < particles.length; j++) {
         const q = particles[j], d = Math.hypot(p.x - q.x, p.y - q.y);
-        if (d < 105) {
+        if (d < 132) {
           ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
-          ctx.strokeStyle = `rgba(153,163,255,${.09 * (1 - d / 105)})`;
+          ctx.strokeStyle = `rgba(85,181,255,${.17 * (1 - d / 132)})`;
           ctx.lineWidth = .65; ctx.stroke();
         }
       }
@@ -76,21 +76,21 @@
     document.querySelectorAll('.magnetic').forEach(button => {
       button.addEventListener('pointermove', e => {
         const r = button.getBoundingClientRect();
-        button.style.transform = `translate(${(e.clientX-r.left-r.width/2)*.07}px,${(e.clientY-r.top-r.height/2)*.12-2}px)`;
+        button.style.transform = `translate(${(e.clientX - r.left - r.width / 2) * .07}px,${(e.clientY - r.top - r.height / 2) * .12 - 2}px)`;
       });
       button.addEventListener('pointerleave', () => button.style.transform = '');
     });
     const art = document.querySelector('.hero-art');
     art.addEventListener('pointermove', e => {
-      const r = art.getBoundingClientRect(), x = (e.clientX-r.left)/r.width-.5, y = (e.clientY-r.top)/r.height-.5;
-      art.style.transform = `rotateY(${x*5}deg) rotateX(${-y*4}deg)`;
+      const r = art.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+      art.style.transform = `rotateY(${x * 5}deg) rotateX(${-y * 4}deg)`;
     });
     art.addEventListener('pointerleave', () => art.style.transform = '');
     const manifesto = document.querySelector('.manifesto');
     addEventListener('scroll', () => {
       const r = manifesto.getBoundingClientRect();
       if (r.top < innerHeight && r.bottom > 0) {
-        const shift = (innerHeight-r.top) * .035;
+        const shift = (innerHeight - r.top) * .035;
         manifesto.querySelector('.orb-one').style.translate = `0 ${shift}px`;
         manifesto.querySelector('.orb-two').style.translate = `0 ${-shift}px`;
       }
@@ -162,3 +162,15 @@ document.querySelectorAll('.idea-card').forEach(card => {
   });
 });
 
+
+// O traço do processo cresce à medida que a seção entra na tela.
+const processSection = document.querySelector('.process-section');
+if (processSection && !reduceMotion) {
+  const updateProcess = () => {
+    const rect = processSection.getBoundingClientRect();
+    const progress = Math.max(0, Math.min(1, (innerHeight - rect.top) / (rect.height + innerHeight * .35)));
+    processSection.style.setProperty('--flow-progress', progress);
+  };
+  addEventListener('scroll', updateProcess, { passive: true });
+  updateProcess();
+}
