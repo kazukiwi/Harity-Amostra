@@ -8,7 +8,7 @@ FILES = {
     "/index.css": "index.css",
     "/index.js": "index.js",
 }
-PHOTOS = {"kazuki.jpg", "joanna.jpg", "vitoria.jpg", "laura.jpg", "felipe.jpg"}
+PHOTOS = {"kazuki.jpg", "joanna.jpg", "vitoria.jpg", "laura.jpg", "felipe.jpg", "icon.webp"}
 
 async def app(scope, receive, send):
     if scope["type"] != "http":
@@ -38,3 +38,4 @@ async def app(scope, receive, send):
         "headers": [(b"content-type", content_type.encode("latin-1"))],
     })
     await send({"type": "http.response.body", "body": b"" if method == "HEAD" else body})
+

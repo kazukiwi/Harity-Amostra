@@ -174,3 +174,136 @@ if (processSection && !reduceMotion) {
   addEventListener('scroll', updateProcess, { passive: true });
   updateProcess();
 }
+
+// Esfera WebGL: iluminação, linhas de latitude e resposta ao ponteiro.
+(() => {
+  const canvas = document.querySelector('.webgl-orb');
+  const stage = document.querySelector('.hero-art');
+  const gl = canvas?.getContext('webgl', { alpha: true, antialias: true, powerPreference: 'low-power' });
+  if (!gl || !stage) return;
+
+  const vertexSource = `
+    attribute vec2 a_position;
+    varying vec2 v_uv;
+    void main(){ v_uv = a_position * 0.5 + 0.5; gl_Position = vec4(a_position, 0.0, 1.0); }
+  `;
+  const fragmentSource = `
+    precision mediump float;
+    varying vec2 v_uv;
+    uniform vec2 u_resolution;
+    uniform vec2 u_pointer;
+    uniform float u_time;
+    void main(){
+      vec2 p = (v_uv - 0.5) * 2.0;
+      p.x *= u_resolution.x / u_resolution.y;
+      float radius = 0.84;
+      float d = length(p);
+      if (d > radius) { gl_FragColor = vec4(0.0); return; }
+      float z = sqrt(max(radius * radius - dot(p,p), 0.0));
+      vec3 n = normalize(vec3(p, z));
+      float spin = u_time * 0.13;
+      n.xz = mat2(cos(spin), -sin(spin), sin(spin), cos(spin)) * n.xz;
+      n.yz = mat2(cos(spin*.54), -sin(spin*.54), sin(spin*.54), cos(spin*.54)) * n.yz;
+      vec3 lightDir = normalize(vec3(-0.48 + u_pointer.x*.32, 0.58 - u_pointer.y*.32, 0.86));
+      float diffuse = max(dot(n, lightDir), 0.0);
+      float specular = pow(max(dot(reflect(-lightDir,n), vec3(0.0,0.0,1.0)),0.0), 34.0);
+      float fresnel = pow(1.0 - max(n.z,0.0), 2.0);
+      float longitude = pow(1.0 - abs(sin(atan(n.x,n.z)*13.0)), 20.0);
+      float latitude = pow(1.0 - abs(sin(asin(clamp(n.y,-1.0,1.0))*15.0)), 27.0);
+      float grid = max(longitude, latitude) * .25;
+      vec3 base = mix(vec3(.018,.075,.17), vec3(.035,.34,.63), smoothstep(-.35,.75,n.y + n.x*.23));
+      vec3 color = base * (.55 + diffuse*.7);
+      color += vec3(.08,.36,.67) * fresnel * .85;
+      color += vec3(.44,.82,1.0) * specular * .95;
+      color += vec3(.14,.55,.85) * grid;
+      float edge = 1.0 - smoothstep(radius-.018, radius, d);
+      float alpha = edge * (.88 + fresnel*.12);
+      gl_FragColor = vec4(color, alpha);
+    }
+  `;
+  function compile(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) { gl.deleteShader(shader); return null; }
+    return shader;
+  }
+  const vertex = compile(gl.VERTEX_SHADER, vertexSource);
+  const fragment = compile(gl.FRAGMENT_SHADER, fragmentSource);
+  if (!vertex || !fragment) return;
+  const program = gl.createProgram();
+  gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
+  gl.useProgram(program);
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+  const position = gl.getAttribLocation(program, 'a_position');
+  gl.enableVertexAttribArray(position);
+  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+  const resolution = gl.getUniformLocation(program, 'u_resolution');
+  const pointerUniform = gl.getUniformLocation(program, 'u_pointer');
+  const timeUniform = gl.getUniformLocation(program, 'u_time');
+  const pointer = { x: 0, y: 0 };
+  const motion = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    const ratio = Math.min(devicePixelRatio || 1, 1.5);
+    canvas.width = Math.max(1, Math.round(rect.width * ratio));
+    canvas.height = Math.max(1, Math.round(rect.height * ratio));
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(resolution, canvas.width, canvas.height);
+    render(0);
+  }
+  stage.addEventListener('pointermove', event => {
+    const rect = stage.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width - .5) * 2;
+    pointer.y = -((event.clientY - rect.top) / rect.height - .5) * 2;
+  }, { passive: true });
+  function render(now) {
+    gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.uniform2f(pointerUniform, pointer.x, pointer.y);
+    gl.uniform1f(timeUniform, motion ? now * .001 : 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (motion && !document.hidden) requestAnimationFrame(render);
+  }
+  resize();
+  addEventListener('resize', resize, { passive: true });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && motion) requestAnimationFrame(render); });
+  stage.classList.add('webgl-ready');
+})();
+
+// Cursor circular discreto; o cursor nativo permanece em celulares e com movimento reduzido.
+(() => {
+  const finePointer = matchMedia('(pointer: fine)').matches;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!finePointer || reducedMotion) return;
+  const ring = document.createElement('div');
+  const dot = document.createElement('div');
+  ring.className = 'cursor-ring'; dot.className = 'cursor-dot';
+  document.body.append(ring, dot);
+  document.body.classList.add('custom-cursor-enabled');
+  const point = { x: innerWidth / 2, y: innerHeight / 2, tx: innerWidth / 2, ty: innerHeight / 2 };
+  addEventListener('pointermove', event => {
+    point.tx = event.clientX; point.ty = event.clientY;
+    dot.style.transform = `translate3d(${point.tx}px,${point.ty}px,0) translate(-50%,-50%)`;
+  }, { passive: true });
+  function follow() {
+    point.x += (point.tx - point.x) * .19;
+    point.y += (point.ty - point.y) * .19;
+    ring.style.transform = `translate3d(${point.x}px,${point.y}px,0) translate(-50%,-50%)`;
+    requestAnimationFrame(follow);
+  }
+  follow();
+  const interactive = 'a,button,[role="button"],.idea-card,.member-card,.project-card,.float-tag';
+  document.addEventListener('pointerover', event => {
+    if (event.target.closest(interactive)) ring.classList.add('is-interactive');
+  });
+  document.addEventListener('pointerout', event => {
+    if (event.target.closest(interactive) && !event.relatedTarget?.closest(interactive)) ring.classList.remove('is-interactive');
+  });
+  document.addEventListener('pointerdown', () => ring.classList.add('is-pressed'));
+  document.addEventListener('pointerup', () => ring.classList.remove('is-pressed'));
+  addEventListener('blur', () => { document.body.classList.remove('custom-cursor-enabled'); ring.style.opacity = '0'; dot.style.opacity = '0'; });
+  addEventListener('focus', () => { document.body.classList.add('custom-cursor-enabled'); ring.style.opacity = ''; dot.style.opacity = ''; });
+})();
