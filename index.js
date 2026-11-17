@@ -307,3 +307,45 @@ if (processSection && !reduceMotion) {
   addEventListener('blur', () => { document.body.classList.remove('custom-cursor-enabled'); ring.style.opacity = '0'; dot.style.opacity = '0'; });
   addEventListener('focus', () => { document.body.classList.add('custom-cursor-enabled'); ring.style.opacity = ''; dot.style.opacity = ''; });
 })();
+
+// Filtragem acessível dos cases.
+const filterButtons = document.querySelectorAll('.filter-chip');
+const projectCards = document.querySelectorAll('.project-card');
+filterButtons.forEach(button => button.addEventListener('click', () => {
+  const filter = button.dataset.filter;
+  filterButtons.forEach(item => {
+    const active = item === button;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-pressed', String(active));
+  });
+  projectCards.forEach(card => {
+    const visible = filter === 'todos' || card.dataset.category === filter;
+    card.hidden = !visible;
+    if (visible) card.classList.add('visible');
+  });
+}));
+
+// O formulário abre uma mensagem pré-preenchida, sem armazenar dados localmente.
+const inquiryForm = document.querySelector('#inquiry-form');
+if (inquiryForm) inquiryForm.addEventListener('submit', event => {
+  event.preventDefault();
+  const values = new FormData(inquiryForm);
+  const message = [
+    'Olá, Harity! Quero conversar sobre um projeto.',
+    '',
+    `Nome: ${values.get('name')}`,
+    `Contato: ${values.get('contact')}`,
+    `Ideia: ${values.get('idea')}`
+  ].join('\n');
+  const status = document.querySelector('#form-status');
+  status.textContent = 'Abrindo o WhatsApp com sua mensagem…';
+  window.open(`https://wa.me/5511934962008?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+});
+
+// Clicar no corpo do cartão também aciona o popover HTML nativo.
+document.querySelectorAll('.member-card').forEach(card => {
+  card.addEventListener('click', event => {
+    if (event.target.closest('a,button')) return;
+    card.querySelector('.member-popover')?.showPopover?.();
+  });
+});
